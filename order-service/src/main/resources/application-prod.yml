@@ -1,0 +1,10 @@
+# 生产环境：由部署平台注入数据库连接参数。
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  datasource:
+    url: ${MYSQL_JDBC_URL}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver

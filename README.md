@@ -23,17 +23,17 @@ spring-cloud-demo/
 │   ├── pom.xml
 │   └── src/
 │       ├── main/java/com/wwweinuo/cloudmall/user/
-│       └── main/resources/application.yml
+│       └── main/resources/application*.yml
 ├── product-service/                # 商品服务，端口 8082
 │   ├── pom.xml
 │   └── src/
 │       ├── main/java/com/wwweinuo/cloudmall/product/
-│       └── main/resources/application.yml
+│       └── main/resources/application*.yml
 ├── order-service/                  # 订单服务，端口 8083
 │   ├── pom.xml
 │   └── src/
 │       ├── main/java/com/wwweinuo/cloudmall/order/
-│       └── main/resources/application.yml
+│       └── main/resources/application*.yml
 ├── docker-compose.yml              # MySQL 容器配置，root/root
 └── docker/mysql/init/01-schema.sql # 带详细注释的建表和演示数据脚本
 ```
@@ -90,6 +90,8 @@ $env:MYSQL_PORT = "3307"
 建表脚本位于 [`docker/mysql/init/01-schema.sql`](D:/code/spring-cloud-demo/docker/mysql/init/01-schema.sql)，包含 `mall_user`、`mall_product`、`mall_order` 和 `mall_order_item` 四张表，以及用户和商品各一条演示数据。
 
 每个服务只依赖和操作自己的 Mapper。三个服务可以共用同一个 MySQL 实例，但业务表的所有权保持隔离，为后续拆分数据库保留空间。
+
+配置文件按 Spring Boot profile 划分：`application.yml` 保存服务名和公共 MyBatis-Plus 配置，默认使用 `dev`；`application-dev.yml`、`application-test.yml` 和 `application-prod.yml` 分别保存开发、测试和生产差异。启动时可以通过 `--spring.profiles.active=test` 或 `--spring.profiles.active=prod` 切换环境。
 
 ## 构建和启动
 
