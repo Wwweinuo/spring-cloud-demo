@@ -3,6 +3,14 @@ server:
   port: 0
 
 spring:
+  config:
+    import:
+      - optional:nacos:order-service-test.yaml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
   datasource:
     url: jdbc:mysql://localhost:${MYSQL_TEST_PORT:3306}/${MYSQL_TEST_DATABASE:cloud_mall}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: ${MYSQL_TEST_USERNAME:root}

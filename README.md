@@ -1,6 +1,6 @@
 # spring-cloud-demo
 
-CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前仍暂不接入 Nacos、OpenFeign、Gateway、Sentinel、Seata、MQ 等治理组件。
+CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前已接入 Nacos 服务注册和配置中心，暂不接入 OpenFeign、Gateway、Sentinel、Seata 和 MQ。
 
 ## 技术约束
 
@@ -46,10 +46,11 @@ spring-cloud-demo/
   ├──→ product-service  :8082 ──→ mall_product
   └──→ order-service    :8083 ──→ mall_order / mall_order_item
 
-                       MySQL
+三个服务 ──→ Nacos :8848
+业务数据 ──→ MySQL
 ```
 
-当前三个服务可以独立启动和编译，但订单服务暂不通过网络调用用户服务或商品服务。订单表中的 `user_id`、`product_id` 是逻辑引用；进入 OpenFeign 阶段后，再由订单服务远程获取用户和商品信息。
+当前三个服务可以独立启动和编译，启动后会向 Nacos 注册自身的服务名、地址和端口，但订单服务暂不通过网络调用用户服务或商品服务。订单表中的 `user_id`、`product_id` 是逻辑引用；进入 OpenFeign 阶段后，再由订单服务通过 Nacos 服务发现远程获取用户和商品信息。
 
 ## 服务职责和接口
 
@@ -93,6 +94,59 @@ $env:MYSQL_PORT = "3307"
 
 配置文件按 Spring Boot profile 划分：`application.yml` 保存服务名和公共 MyBatis-Plus 配置，默认使用 `dev`；`application-dev.yml`、`application-test.yml` 和 `application-prod.yml` 分别保存开发、测试和生产差异。启动时可以通过 `--spring.profiles.active=test` 或 `--spring.profiles.active=prod` 切换环境。
 
+## Nacos 学习环境
+
+当前阶段使用 Docker 启动 Nacos 单机版，作为后续学习服务注册、服务发现和配置中心的基础环境。Nacos 使用内置 Derby 存储，适合本地学习；如果删除容器，Nacos 中保存的服务和配置数据也会丢失。
+
+在 PowerShell 中执行以下单行命令：
+
+```powershell
+docker run --name nacos-standalone --restart unless-stopped -e MODE=standalone -e NACOS_AUTH_TOKEN=c3ByaW5nLWNsb3VkLWRlbW8tbmFjb3Mtc2VjcmV0LXRva2VuLTIwMjY= -e NACOS_AUTH_IDENTITY_KEY=nacos -e NACOS_AUTH_IDENTITY_VALUE=nacos -p 8080:8080 -p 8848:8848 -p 9848:9848 -d nacos/nacos-server:latest
+```
+
+启动后访问 Nacos 控制台：<http://localhost:8080>。首次进入时，按照页面提示初始化 `nacos` 管理员密码。
+
+查看启动日志：
+
+```powershell
+docker logs -f nacos-standalone
+```
+
+如果容器已经创建过，不要重复执行 `docker run`，直接启动已有容器：
+
+```powershell
+docker start nacos-standalone
+```
+
+Nacos 端口说明：`8080` 用于控制台，`8848` 用于客户端和 HTTP API，`9848` 用于客户端 gRPC 通信。三个 Spring Boot 服务接入 Nacos 时，服务地址使用 `localhost:8848`，而不是 `localhost:8080`。
+
+### Nacos 配置中心
+
+三个服务都已通过 `spring.config.import` 接入 Nacos 配置中心，并根据当前 Spring profile 导入对应配置。配置默认使用 `dev` 命名空间和 `DEFAULT_GROUP` 分组，也可以通过 `NACOS_NAMESPACE` 环境变量覆盖，Data ID 如下：
+
+| 服务 | dev | test | prod |
+| --- | --- | --- | --- |
+| user-service | `user-service-dev.yaml` | `user-service-test.yaml` | `user-service-prod.yaml` |
+| product-service | `product-service-dev.yaml` | `product-service-test.yaml` | `product-service-prod.yaml` |
+| order-service | `order-service-dev.yaml` | `order-service-test.yaml` | `order-service-prod.yaml` |
+
+当前先为 `user-service` 创建一份最小配置，用于验证配置中心加载链路：
+
+```text
+Namespace: dev
+Group: DEFAULT_GROUP
+Data ID: user-service-dev.yaml
+```
+
+配置内容：
+
+```yaml
+cloudmall:
+  greeting: hello from nacos
+```
+
+三个服务都通过 `spring.config.import` 导入上表中的配置，并开启配置变更监听。配置不存在时使用 `optional:nacos:`，不会阻止应用启动；发布配置后重启对应服务即可先验证配置是否被加载。正式迁移业务配置时，建议保持 Data ID 与服务名、环境名一致。
+
 ## 构建和启动
 
 全量构建：
@@ -130,7 +184,7 @@ curl -X POST http://localhost:8083/orders \
 
 ## 后续演进
 
-1. Nacos：服务注册、发现和统一配置。
+1. Nacos 配置中心：将三个服务的业务配置逐步迁移到 Nacos，并验证动态刷新。
 2. OpenFeign：订单服务调用用户服务和商品服务。
 3. Gateway：统一入口和路由转发。
 4. Sentinel：超时、限流、熔断和降级。

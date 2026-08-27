@@ -3,6 +3,14 @@ server:
   port: ${SERVER_PORT:8081}
 
 spring:
+  config:
+    import:
+      - optional:nacos:user-service-prod.yaml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
   datasource:
     url: ${MYSQL_JDBC_URL}
     username: ${MYSQL_USERNAME}
