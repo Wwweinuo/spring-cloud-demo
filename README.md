@@ -1,6 +1,6 @@
 # spring-cloud-demo
 
-CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前已接入 Nacos 服务注册和配置中心，暂不接入 OpenFeign、Gateway、Sentinel、Seata 和 MQ。
+CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前已接入 Nacos 服务注册、配置中心和 OpenFeign 服务间调用，暂不接入 Gateway、Sentinel、Seata 和 MQ。
 
 ## 技术约束
 
@@ -50,7 +50,7 @@ spring-cloud-demo/
 业务数据 ──→ MySQL
 ```
 
-当前三个服务可以独立启动和编译，启动后会向 Nacos 注册自身的服务名、地址和端口，但订单服务暂不通过网络调用用户服务或商品服务。订单表中的 `user_id`、`product_id` 是逻辑引用；进入 OpenFeign 阶段后，再由订单服务通过 Nacos 服务发现远程获取用户和商品信息。
+当前三个服务可以独立启动和编译，启动后会向 Nacos 注册自身的服务名、地址和端口。订单服务通过 OpenFeign 使用服务名调用用户服务和商品服务；订单表中的 `user_id`、`product_id` 仍然是逻辑引用，订单服务不直接访问其他服务的数据库。
 
 ## 服务职责和接口
 
@@ -174,18 +174,30 @@ curl http://localhost:8081/users/1
 curl http://localhost:8082/products/1
 ```
 
-订单服务在尚未接入 OpenFeign 时，创建请求可以携带商品快照字段：
+订单服务创建订单时会通过 OpenFeign 查询用户状态、商品名称、商品价格和商品上下架状态。请求只需要携带用户、商品和数量：
 
 ```bash
 curl -X POST http://localhost:8083/orders \
   -H "Content-Type: application/json" \
-  -d '{"userId":1,"productId":1,"quantity":2,"productName":"CloudMall 入门商品","unitPrice":99.00}'
+  -d '{"userId":1,"productId":1,"quantity":2}'
 ```
+
+### OpenFeign 服务间调用
+
+统一的 `api` 模块维护用户、商品服务的 Feign 调用契约，业务服务引入该模块后，通过以下服务名调用下游服务：
+
+```text
+order-service
+    ├──→ user-service    GET /users/{id}
+    └──→ product-service GET /products/{id}
+```
+
+Feign 请求不写死 IP 和端口，由 Nacos 提供服务实例，Spring Cloud LoadBalancer 负责从实例列表中选择目标实例。当前配置的连接超时为 2 秒，读取超时为 3 秒；下游服务不可用时，订单接口返回“下游服务暂时不可用，请稍后重试”。
 
 ## 后续演进
 
 1. Nacos 配置中心：将三个服务的业务配置逐步迁移到 Nacos，并验证动态刷新。
-2. OpenFeign：订单服务调用用户服务和商品服务。
+2. LoadBalancer：启动多个商品服务实例，验证实例选择和故障实例剔除。
 3. Gateway：统一入口和路由转发。
 4. Sentinel：超时、限流、熔断和降级。
 5. Seata / MQ：处理跨服务数据一致性。

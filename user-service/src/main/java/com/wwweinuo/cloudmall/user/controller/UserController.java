@@ -1,6 +1,7 @@
 package com.wwweinuo.cloudmall.user.controller;
 
 import com.wwweinuo.cloudmall.common.response.Result;
+import com.wwweinuo.cloudmall.api.user.dto.UserDTO;
 import com.wwweinuo.cloudmall.user.model.User;
 import com.wwweinuo.cloudmall.user.service.UserService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,11 +20,11 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public Result<User> getById(@PathVariable Long id) {
+    public Result<UserDTO> getById(@PathVariable Long id) {
         User user = userService.getById(id);
         if (user == null) {
             return Result.failure("用户不存在: " + id);
         }
-        return Result.success(user);
+        return Result.success(new UserDTO(user.getId(), user.getUsername(), user.getStatus()));
     }
 }

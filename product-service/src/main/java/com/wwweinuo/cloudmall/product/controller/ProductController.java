@@ -1,6 +1,7 @@
 package com.wwweinuo.cloudmall.product.controller;
 
 import com.wwweinuo.cloudmall.common.response.Result;
+import com.wwweinuo.cloudmall.api.product.dto.ProductDTO;
 import com.wwweinuo.cloudmall.product.model.Product;
 import com.wwweinuo.cloudmall.product.service.ProductService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,11 +20,16 @@ public class ProductController {
     }
 
     @GetMapping("/{id}")
-    public Result<Product> getById(@PathVariable Long id) {
+    public Result<ProductDTO> getById(@PathVariable Long id) {
         Product product = productService.getById(id);
         if (product == null) {
             return Result.failure("商品不存在: " + id);
         }
-        return Result.success(product);
+        return Result.success(new ProductDTO(
+                product.getId(),
+                product.getName(),
+                product.getPrice(),
+                product.getStatus()
+        ));
     }
 }
