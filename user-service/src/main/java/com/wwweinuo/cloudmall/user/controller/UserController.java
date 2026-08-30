@@ -4,6 +4,7 @@ import com.wwweinuo.cloudmall.common.response.Result;
 import com.wwweinuo.cloudmall.api.user.dto.UserDTO;
 import com.wwweinuo.cloudmall.user.model.User;
 import com.wwweinuo.cloudmall.user.service.UserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,13 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
-
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
 
     @GetMapping("/{id}")
     public Result<UserDTO> getById(@PathVariable Long id) {

@@ -1,0 +1,8 @@
+# 开发环境：Gateway 使用 8000 端口，避免与 Nacos 控制台 8080 端口冲突。
+server:
+  port: 8000
+
+spring:
+  config:
+    import:
+      - optional:nacos:gateway-dev.yaml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true

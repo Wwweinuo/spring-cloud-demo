@@ -1,6 +1,6 @@
 # spring-cloud-demo
 
-CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前已接入 Nacos 服务注册、配置中心和 OpenFeign 服务间调用，暂不接入 Gateway、Sentinel、Seata 和 MQ。
+CloudMall 当前按照推荐的微服务多模块结构组织。三个业务服务拥有独立的启动类、端口、配置、Controller、Service、Mapper 和数据边界；当前已接入 Nacos 服务注册、配置中心、OpenFeign 服务间调用和 Gateway 统一入口，暂不接入 Sentinel、Seata 和 MQ。
 
 ## 技术约束
 
@@ -19,6 +19,12 @@ spring-cloud-demo/
 ├── README.md                       # 项目说明、架构图和启动方式
 ├── .gitignore
 ├── common/                         # 公共响应结构和基础错误码
+├── api/                            # 统一维护跨服务 Feign API 和 DTO
+├── gateway/                         # Gateway 统一入口，端口 8000
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/com/wwweinuo/cloudmall/gateway/
+│       └── resources/application*.yml
 ├── user-service/                   # 用户服务，端口 8081
 │   ├── pom.xml
 │   └── src/
@@ -42,20 +48,22 @@ spring-cloud-demo/
 
 ```text
 客户端
-  ├──→ user-service     :8081 ──→ mall_user
-  ├──→ product-service  :8082 ──→ mall_product
-  └──→ order-service    :8083 ──→ mall_order / mall_order_item
+  └──→ gateway          :8000
+          ├──→ user-service     :8081 ──→ mall_user
+          ├──→ product-service  :8082 ──→ mall_product
+          └──→ order-service    :8083 ──→ mall_order / mall_order_item
 
-三个服务 ──→ Nacos :8848
+Gateway 和三个服务 ──→ Nacos :8848
 业务数据 ──→ MySQL
 ```
 
-当前三个服务可以独立启动和编译，启动后会向 Nacos 注册自身的服务名、地址和端口。订单服务通过 OpenFeign 使用服务名调用用户服务和商品服务；订单表中的 `user_id`、`product_id` 仍然是逻辑引用，订单服务不直接访问其他服务的数据库。
+当前三个业务服务可以独立启动和编译，Gateway 作为统一入口运行在 8000 端口。启动后 Gateway 和业务服务都会向 Nacos 注册自身的服务名、地址和端口。订单服务通过 OpenFeign 使用服务名调用用户服务和商品服务；订单表中的 `user_id`、`product_id` 仍然是逻辑引用，订单服务不直接访问其他服务的数据库。
 
 ## 服务职责和接口
 
 | 服务 | 端口 | 职责 | 接口 |
 | --- | ---: | --- | --- |
+| gateway | 8000 | 统一入口和路由转发 | `/api/users/**`、`/api/products/**`、`/api/orders/**` |
 | user-service | 8081 | 用户资料、状态和基础查询 | `GET /users/{id}` |
 | product-service | 8082 | 商品信息、价格和上下架状态 | `GET /products/{id}` |
 | order-service | 8083 | 订单创建、状态和查询 | `POST /orders`、`GET /orders/{id}` |
@@ -158,7 +166,8 @@ mvn clean test
 先打包，再分别运行：
 
 ```bash
-mvn -pl user-service,product-service,order-service -am package -DskipTests
+mvn -pl gateway,user-service,product-service,order-service -am package -DskipTests
+java -jar gateway/target/gateway-1.0.0-SNAPSHOT.jar
 java -jar user-service/target/user-service-1.0.0-SNAPSHOT.jar
 java -jar product-service/target/product-service-1.0.0-SNAPSHOT.jar
 java -jar order-service/target/order-service-1.0.0-SNAPSHOT.jar
@@ -172,6 +181,8 @@ curl http://localhost:8082/internal/info
 curl http://localhost:8083/internal/info
 curl http://localhost:8081/users/1
 curl http://localhost:8082/products/1
+curl http://localhost:8000/api/users/1
+curl http://localhost:8000/api/products/1
 ```
 
 订单服务创建订单时会通过 OpenFeign 查询用户状态、商品名称、商品价格和商品上下架状态。请求只需要携带用户、商品和数量：
@@ -194,11 +205,33 @@ order-service
 
 Feign 请求不写死 IP 和端口，由 Nacos 提供服务实例，Spring Cloud LoadBalancer 负责从实例列表中选择目标实例。当前配置的连接超时为 2 秒，读取超时为 3 秒；下游服务不可用时，订单接口返回“下游服务暂时不可用，请稍后重试”。
 
+### Gateway 网关实验
+
+Gateway 运行在 `8000` 端口，路由目标使用 `lb://服务名`，因此请求会先由 Gateway 根据路径匹配路由，再由 Nacos 提供实例列表、LoadBalancer 选择具体实例。当前实验路由如下：
+
+| 网关路径 | 目标服务 | 转发后的路径 |
+| --- | --- | --- |
+| `/api/users/**` | `user-service` | 去掉 `/api`，例如 `/api/users/1` → `/users/1` |
+| `/api/products/**` | `product-service` | 去掉 `/api`，例如 `/api/products/1` → `/products/1` |
+| `/api/orders/**` | `order-service` | 去掉 `/api`，例如 `/api/orders` → `/orders` |
+
+启动 Gateway 前请确认 Nacos、用户服务、商品服务和订单服务已经运行，并且都处于 `dev` 命名空间。然后通过网关验证：
+
+```bash
+curl http://localhost:8000/actuator/health
+curl http://localhost:8000/api/users/1
+curl http://localhost:8000/api/products/1
+curl -X POST http://localhost:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"userId":1,"productId":1,"quantity":2}'
+```
+
+Gateway 的本地路由配置位于 `gateway/src/main/resources/application.yml`。`application-dev.yml` 将端口设置为 `8000`，并预留了 `gateway-dev.yaml` 的 Nacos 配置导入位置；当前路由先保存在本地文件，完成基础实验后再迁移到 Nacos 配置中心。
+
 ## 后续演进
 
 1. Nacos 配置中心：将三个服务的业务配置逐步迁移到 Nacos，并验证动态刷新。
 2. LoadBalancer：启动多个商品服务实例，验证实例选择和故障实例剔除。
-3. Gateway：统一入口和路由转发。
-4. Sentinel：超时、限流、熔断和降级。
-5. Seata / MQ：处理跨服务数据一致性。
-6. Trace / Prometheus：完善链路追踪、指标和日志观测。
+3. Sentinel：超时、限流、熔断和降级。
+4. Seata / MQ：处理跨服务数据一致性。
+5. Trace / Prometheus：完善链路追踪、指标和日志观测。
