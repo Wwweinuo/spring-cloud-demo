@@ -6,3 +6,10 @@ spring:
   config:
     import:
       - optional:nacos:gateway-dev.yaml?group=${NACOS_CONFIG_GROUP:DEFAULT_GROUP}&refreshEnabled=true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.loadbalancer: DEBUG
+    com.alibaba.cloud.nacos: DEBUG
+    com.alibaba.nacos: INFO

@@ -30,6 +30,12 @@ public class ProductController {
         if (product == null) {
             return Result.failure("商品不存在: " + id);
         }
+        // 暂停三秒
+//        try {
+//            Thread.sleep(3000);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
         return Result.success(new ProductDTO(
                 product.getId(),
                 product.getName(),
